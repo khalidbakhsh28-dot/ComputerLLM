@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComputerLLM // Research Workstation</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PDF.js CDN for extracting text and rendering research papers -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <!-- Google Fonts for Retro Monospace Aesthetics -->
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=JetBrains+Mono:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Custom styles to create the "Computer" OS terminal/workstation aesthetic */
+        body {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            background-color: #0c0f12;
+            color: #d1d5db;
+        }
+
+        /* Retro CRT scanline effect toggles */
+        .crt::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 999;
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none;
+        }
+
+        /* Glowing LED status indicator */
+        .led-indicator {
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+            transition: all 0.3s ease;
+        }
+        .led-active {
+            background-color: #10b981 !important;
+            box-shadow: 0 0 12px #10b981;
+        }
+
+        /* Phosphor glowing borders */
+        .terminal-border {
+            border: 1px solid #1f2937;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+        }
+        .terminal-border:hover {
+            border-color: #4b5563;
+        }
+
+        /* Custom scrollbar to match terminal theme */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* Glowing terminal effects */
+        .text-glow-green {
+            text-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+        }
+        .text-glow-amber {
+            text-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
+        }
+        .border-glow-green {
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
+        }
+
+        /* Micro-animations */
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .animate-pulse-slow {
+            animation: pulse-slow 2s infinite;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden relative selection:bg-emerald-900 selection:text-emerald-100">
+
+    <!-- Top Navigation Control Bar -->
+    <header class="h-14 bg-[#11161d] border-b border-zinc-800 px-4 flex items-center justify-between z-10 select-none">
+        <div class="flex items-center space-x-3">
+            <!-- Retro terminal icon -->
+            <div class="bg-gradient-to-br from-emerald-500 to-teal-700 p-2 rounded-md border border-emerald-400/30 shadow-md">
+                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-sm font-extrabold tracking-widest text-emerald-400 text-glow-green">COMPUTER//LLM</span>
+                    <span class="text-[9px] bg-zinc-800 text-zinc-400 border border-zinc-700 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">v2.5 Workstation</span>
+                </div>
+                <p class="text-[9px] text-zinc-500 tracking-tight leading-none">Automated Research Paper Cognitive Co-Processor</p>
+            </div>
+        </div>
+
+        <!-- Global Status Messages -->
+        <div id="system-broadcaster" class="hidden md:flex items-center space-x-2 text-[10px] text-zinc-400 bg-zinc-950/60 border border-zinc-800/80 px-3 py-1 rounded-full max-w-sm overflow-hidden text-ellipsis whitespace-nowrap">
+            <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
+            <span id="broadcast-msg" class="font-medium">System Idle. Standing by for operations...</span>
+        </div>
+
+        <!-- System Controls & API Key Field -->
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2 bg-zinc-950/80 border border-zinc-800 rounded px-2 py-1">
+                <span class="text-[9px] font-bold text-zinc-400 uppercase">Key:</span>
+                <input 
+                    type="password" 
+                    id="api-key-input" 
+                    placeholder="Paste Gemini API Key..." 
+                    class="bg-transparent text-xs text-zinc-300 placeholder-zinc-600 border-none outline-none focus:ring-0 w-36 md:w-52 font-mono transition-all"
+                />
+                <button 
+                    onclick="testAndSaveApiKey()"
+                    class="text-[9px] font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white px-2 py-0.5 rounded border border-zinc-700 transition"
+                    title="Click to verify key with a diagnostic ping"
+                >
+                    Link
+                </button>
+            </div>
+            
+            <!-- Connection Status Indicator LED -->
+            <div class="flex items-center space-x-1.5 bg-zinc-900/60 border border-zinc-800/80 px-2.5 py-1.5 rounded">
+                <span id="api-indicator" class="w-2.5 h-2.5 rounded-full bg-red-500 led-indicator"></span>
+                <span id="api-status-label" class="text-[10px] font-bold tracking-wider text-zinc-400 uppercase">OFFLINE</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Layout Grid -->
+    <main class="flex-1 flex overflow-hidden w-full">
+        
+        <!-- Left Sidebar: PDF Management & Upload (25% width) -->
+        <aside class="w-80 bg-[#0e1218] border-r border-zinc-800 flex flex-col h-full flex-shrink-0">
+            <div class="p-3 border-b border-zinc-800 bg-zinc-950/30">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-[11px] font-bold text-zinc-400 tracking-wider flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        PAPER STORAGE
+                    </span>
+                    <span id="paper-count" class="text-[9px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded font-bold font-mono">0 Loaded</span>
+                </div>
+
+                <!-- Drag & Drop Upload Zone -->
+                <label class="group flex flex-col items-center justify-center border border-dashed border-zinc-700 hover:border-emerald-500 bg-zinc-950/50 hover:bg-emerald-950/10 p-4 rounded-md cursor-pointer transition-all duration-200">
+                    <input 
+                        type="file" 
+                        id="pdf-upload" 
+                        accept="application/pdf" 
+                        multiple 
+                        class="hidden" 
+                        onchange="handlePdfUpload(event)"
+                    />
+                    <svg class="w-8 h-8 text-zinc-500 group-hover:text-emerald-400 group-hover:scale-105 transition-all duration-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <span class="text-[10px] font-semibold text-zinc-400 group-hover:text-zinc-200 tracking-tight">Upload Research PDFs</span>
+                    <span class="text-[8px] text-zinc-600 mt-1 uppercase font-bold tracking-wider">Multi-selection supported</span>
+                </label>
+            </div>
+
+            <!-- List of Uploaded Documents with extraction stats -->
+            <div class="flex-1 overflow-y-auto p-3 space-y-2.5" id="paper-list-container">
+                <!-- Fallback Empty State -->
+                <div id="no-papers-splash" class="flex flex-col items-center justify-center py-12 text-center">
+                    <svg class="w-8 h-8 text-zinc-700 animate-pulse-slow mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                    </svg>
+                    <p class="text-[10px] font-bold tracking-wide text-zinc-600 uppercase">No papers mounted</p>
+                    <p class="text-[9px] text-zinc-500 mt-1 max-w-[200px] leading-tight">Load PDF publications to populate active context memory modules.</p>
+                </div>
+            </div>
+
+            <!-- Context Quick Info & Check All options -->
+            <div class="p-3 border-t border-zinc-800 bg-zinc-950/40 text-[9px] flex flex-col space-y-2">
+                <div class="flex items-center justify-between text-zinc-500">
+                    <span>COGNITIVE MATRIX INDEX</span>
+                    <span id="indexed-words-count">0 words</span>
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="toggleAllPapers(true)" class="flex-1 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-zinc-400 py-1 rounded transition">Select All</button>
+                    <button onclick="toggleAllPapers(false)" class="flex-1 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 text-zinc-400 py-1 rounded transition">Deselect All</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center: Interactive Native PDF Viewer (45% dynamic width) -->
+        <section class="flex-1 bg-[#0b0c10] border-r border-zinc-800 flex flex-col h-full relative">
+            <div class="h-10 border-b border-zinc-800 px-3 bg-zinc-950/20 flex items-center justify-between z-10">
+                <div class="flex items-center space-x-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    <span class="text-[11px] font-extrabold text-zinc-300 tracking-wider uppercase">CENTRAL VIEWPORT</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span id="active-viewer-doc-name" class="text-[10px] text-zinc-400 max-w-sm overflow-hidden text-ellipsis whitespace-nowrap bg-zinc-900/60 px-2 py-0.5 rounded border border-zinc-800">No active paper loaded</span>
+                </div>
+            </div>
+
+            <!-- PDF Viewer Body -->
+            <div class="flex-1 relative w-full h-full bg-[#11141a] overflow-hidden" id="pdf-view-container">
+                <!-- Empty State Splash / Screen Scanlines -->
+                <div id="pdf-empty-state" class="absolute inset-0 flex flex-col items-center justify-center p-8 text-center z-10 bg-[#0f1217]">
+                    <div class="w-20 h-20 border-2 border-emerald-500/10 rounded-full flex items-center justify-center mb-4 border-glow-green">
+                        <svg class="w-10 h-10 text-emerald-500/40 animate-pulse-slow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                        </svg>
+                    </div>
+                    <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest text-glow-green">System Viewport Inactive</span>
+                    <p class="text-[10px] text-zinc-500 mt-2 max-w-sm leading-relaxed">
+                        To study and scan diagrams, text formatting, and citations, select a paper from the storage sidebar on the left and click its viewport target.
+                    </p>
+                </div>
+
+                <!-- Custom High-Performance Document Renderer Canvas Container -->
+                <div id="pdf-render-container" class="w-full h-full hidden overflow-y-auto p-4 flex flex-col items-center space-y-6 bg-zinc-950/80"></div>
+            </div>
+        </section>
+
+        <!-- Right Sidebar: LLM Contextual Chat (30% width) -->
+        <section class="w-96 bg-[#0d1015] flex flex-col h-full flex-shrink-0">
+            <!-- Header for LLM Panel -->
+            <div class="p-3 border-b border-zinc-800 bg-zinc-950/20 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    <span class="text-[11px] font-extrabold text-zinc-300 tracking-wider uppercase">CO-PROCESSOR TELEMETRY</span>
+                </div>
+                <button 
+                    onclick="clearChatLog()" 
+                    class="text-[9px] font-bold text-zinc-500 hover:text-red-400 bg-zinc-900 border border-zinc-800/80 px-2 py-0.5 rounded transition"
+                >
+                    PURGE LOG
+                </button>
+            </div>
+
+            <!-- Active Context Indicator and Status -->
+            <div class="bg-zinc-950/60 border-b border-zinc-800/60 px-3 py-2 flex flex-col space-y-1">
+                <div class="flex items-center justify-between">
+                    <span class="text-[8px] font-bold text-zinc-500 uppercase tracking-wider">Active Workspace Context</span>
+                    <span id="active-context-badge" class="text-[8px] px-1 py-0.2 rounded font-bold bg-amber-950/40 text-amber-500 border border-amber-800/30">0 documents locked</span>
+                </div>
+                <p id="context-documents-list" class="text-[9px] text-zinc-400 truncate">No reference datasets active.</p>
+            </div>
+
+            <!-- Chat Message Logger -->
+            <div id="chat-messages" class="flex-1 overflow-y-auto p-3 space-y-3.5 bg-zinc-950/20 text-[11px] leading-relaxed">
+                <!-- Welcome Assistant Message -->
+                <div class="flex items-start space-x-2.5">
+                    <div class="w-5 h-5 rounded bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 font-bold text-[9px] flex-shrink-0">
+                        CP
+                    </div>
+                    <div class="bg-zinc-900/40 border border-zinc-800 rounded p-2.5 max-w-[85%] text-zinc-300">
+                        <span class="font-bold text-amber-500 block mb-1 uppercase text-[8px] tracking-wider">CO-PROCESSOR INITIALIZED</span>
+                        Greetings researcher. I am your Gemini 2.5 Flash research assistant. 
+                        <br/><br/>
+                        1. Mount your desired paper PDFs in the storage sidebar.
+                        <br/>
+                        2. Keep checkboxes marked to lock them into my memory core.
+                        <br/>
+                        3. Prompt me on syntheses, analyses, comparisons, or summaries.
+                    </div>
+                </div>
+            </div>
+
+            <!-- System diagnostic bar / notification strip -->
+            <div id="system-diagnostic" class="hidden px-3 py-1.5 bg-zinc-900/80 border-t border-zinc-800 text-[9px] font-semibold text-amber-500 flex items-center space-x-2 animate-pulse">
+                <span class="w-1 h-1 bg-amber-500 rounded-full"></span>
+                <span id="diagnostic-msg">AI Processing Query...</span>
+            </div>
+
+            <!-- Message Input Area -->
+            <div class="p-3 bg-zinc-950/50 border-t border-zinc-800 flex flex-col space-y-2">
+                <div class="relative flex items-center bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 focus-within:border-emerald-500 rounded-md transition-all duration-150">
+                    <textarea 
+                        id="chat-input" 
+                        rows="2" 
+                        onkeydown="handleTextareaKeydown(event)"
+                        placeholder="Inquire about loaded research metrics..." 
+                        class="w-full bg-transparent text-xs p-2 text-zinc-200 placeholder-zinc-600 border-none outline-none resize-none font-mono focus:ring-0"
+                    ></textarea>
+                    
+                    <button 
+                        onclick="sendUserPrompt()"
+                        class="absolute right-2 bottom-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold p-1.5 rounded transition border border-emerald-400/20 shadow-md flex items-center justify-center"
+                        title="Submit prompt to Gemini Core"
+                    >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="flex items-center justify-between text-[8px] text-zinc-500 font-bold uppercase tracking-wider px-0.5">
+                    <span>Press Enter to send (Shift+Enter for newline)</span>
+                    <span id="active-model-footer" class="text-zinc-600">Model: Gemini 2.5 Flash</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Custom Popups / Dialogs (Replacements for Native Alerts) -->
+    <div id="custom-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-[#121620] border border-zinc-700 max-w-md w-full rounded-md shadow-2xl p-4 font-mono">
+            <div class="flex items-center space-x-2 text-amber-500 mb-3 border-b border-zinc-800 pb-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <span class="text-xs font-bold tracking-wider uppercase" id="modal-title">SYSTEM DIAGNOSTIC</span>
+            </div>
+            <p id="modal-message" class="text-[11px] text-zinc-300 leading-relaxed mb-4">No payload loaded.</p>
+            <div class="flex justify-end">
+                <button onclick="closeModal()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-4 py-1.5 rounded text-[10px] border border-zinc-700 transition">ACKNOWLEDGE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Core Script -->
+    <script>
+        // Setup PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        // State Store
+        const appState = {
+            apiKey: '',
+            activeModel: 'gemini-2.5-flash', // Will automatically adjust based on successful handshake
+            papers: [], // Array of { id, name, size, url, objectUrl, extractedText, wordCount, active, file }
+            isProcessingPdf: false,
+            chatHistory: [] // To keep track of multi-turn logic
+        };
+
+        // Initialize App on DOM Ready
+        window.onload = function() {
+            broadcastSystemStatus("System active. Read out: Storage initialized.");
+            
+            // Check for saved API key in local storage/session (since we do not have multi-user requirements)
+            const savedKey = localStorage.getItem('computerllm_api_key');
+            if (savedKey) {
+                document.getElementById('api-key-input').value = savedKey;
+                appState.apiKey = savedKey;
+                testAndSaveApiKey(); // Fast self-test
+            }
+            
+            // Synthesize subtle computer start sound (purely optional retro detail)
+            try {
+                playSynthTone(220, 'triangle', 0.1);
+                setTimeout(() => playSynthTone(440, 'triangle', 0.15), 100);
+            } catch (e) {
+                // Audio context block safeguards
+            }
+        };
+
+        // System-wide notification broadcaster
+        function broadcastSystemStatus(message) {
+            const container = document.getElementById('system-broadcaster');
+            const target = document.getElementById('broadcast-msg');
+            container.classList.remove('hidden');
+            target.textContent = message;
+        }
+
+        // Custom Modal UI
+        function showModal(title, msg) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-message').textContent = msg;
+            document.getElementById('custom-modal').classList.remove('hidden');
+            document.getElementById('custom-modal').classList.add('flex');
+            playSynthTone(150, 'square', 0.25); // System warning tone
+        }
+
+        // Custom Modal UI helper for closing
+        function closeModal() {
+            document.getElementById('custom-modal').classList.add('hidden');
+            document.getElementById('custom-modal').classList.remove('flex');
+        }
+
+        // Web Audio API Synthesizer Tone Generator (for Computer Aesthetic click sounds)
+        function playSynthTone(freq, type = 'sine', duration = 0.08) {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.type = type;
+                oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                
+                gainNode.gain.setValueAtTime(0.04, audioCtx.currentTime); // Low volume
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + duration);
+            } catch (e) {
+                // Ignore if audio engine is blocked or unsupported
+            }
+        }
+
+        // Robust API Key Handling with Multi-Model Fallback Handshake
+        async function testAndSaveApiKey() {
+            const keyInput = document.getElementById('api-key-input').value.trim();
+            const indicator = document.getElementById('api-indicator');
+            const statusLabel = document.getElementById('api-status-label');
+
+            if (!keyInput) {
+                indicator.classList.remove('led-active');
+                statusLabel.textContent = "OFFLINE";
+                appState.apiKey = '';
+                localStorage.removeItem('computerllm_api_key');
+                showModal("API ERROR", "API Key field cannot be empty. Please input a valid Gemini API Key.");
+                return;
+            }
+
+            broadcastSystemStatus("Performing diagnostic handshake sequence...");
+            playSynthTone(580, 'sine', 0.1);
+
+            // Attempt matching across various model generations to see which one the user key supports
+            const modelsToTry = [
+                'gemini-2.5-flash',
+                'gemini-2.5-flash-preview-09-2025',
+                'gemini-1.5-flash'
+            ];
+            
+            let handshakeSucceeded = false;
+            let activeModelFound = '';
+
+            for (const model of modelsToTry) {
+                try {
+                    broadcastSystemStatus(`Verifying Node Endpoint: ${model}...`);
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keyInput}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: "ping" }] }]
+                        })
+                    });
+
+                    if (response.ok) {
+                        handshakeSucceeded = true;
+                        activeModelFound = model;
+                        break; // Stop checking models on first success
+                    }
+                } catch (e) {
+                    console.warn(`Handshake connection skipped for model: ${model}`);
+                }
+            }
+
+            if (handshakeSucceeded) {
+                appState.apiKey = keyInput;
+                appState.activeModel = activeModelFound;
+                localStorage.setItem('computerllm_api_key', keyInput);
+                
+                indicator.classList.add('led-active');
+                statusLabel.textContent = "ONLINE";
+                statusLabel.classList.add('text-emerald-400');
+                
+                document.getElementById('active-model-footer').textContent = `Model: ${activeModelFound}`;
+                broadcastSystemStatus(`Handshake success. Co-Processor synced with ${activeModelFound}.`);
+                playSynthTone(880, 'sine', 0.15);
+            } else {
+                indicator.classList.remove('led-active');
+                statusLabel.textContent = "KEY ERROR";
+                statusLabel.classList.remove('text-emerald-400');
+                localStorage.removeItem('computerllm_api_key');
+                appState.apiKey = '';
+                
+                showModal("HANDSHAKE FAILURE", "Handshake test failed across all core modules (gemini-2.5-flash, preview, & gemini-1.5-flash). Please double-check your API key formatting, billing configuration, or network proxy constraints.");
+                broadcastSystemStatus("API Handshake Failed.");
+            }
+        }
+
+        // Checkbox state tracker to sync with UI
+        function updateActiveContextStats() {
+            const activePapers = appState.papers.filter(p => p.active);
+            const countBadge = document.getElementById('active-context-badge');
+            const docListStr = document.getElementById('context-documents-list');
+
+            countBadge.textContent = `${activePapers.length} doc${activePapers.length === 1 ? '' : 's'} locked`;
+            
+            if (activePapers.length === 0) {
+                docListStr.textContent = "No reference datasets active.";
+                countBadge.className = "text-[8px] px-1 py-0.2 rounded font-bold bg-amber-950/40 text-amber-500 border border-amber-800/30";
+            } else {
+                const names = activePapers.map(p => p.name).join(", ");
+                docListStr.textContent = `Locked: ${names}`;
+                countBadge.className = "text-[8px] px-1 py-0.2 rounded font-bold bg-emerald-950/40 text-emerald-400 border border-emerald-800/30";
+            }
+
+            // Sync total word context in catalog
+            const totalWords = appState.papers.reduce((acc, p) => acc + (p.active ? p.wordCount : 0), 0);
+            document.getElementById('indexed-words-count').textContent = `${totalWords.toLocaleString()} words`;
+        }
+
+        // PDF Text Parsing & Memory Mounting
+        async function handlePdfUpload(event) {
+            const files = event.target.files;
+            if (!files.length) return;
+
+            broadcastSystemStatus(`Loading ${files.length} paper(s) to system buffers...`);
+            toggleLoaderNotification(true, "Mounting research publications...");
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                
+                // Avoid mounting identical files
+                if (appState.papers.some(p => p.name === file.name && p.size === file.size)) {
+                    continue;
+                }
+
+                try {
+                    const objectUrl = URL.createObjectURL(file);
+                    
+                    // Parse text with PDF.js
+                    const arrayBuffer = await readFileAsArrayBuffer(file);
+                    const extractedText = await extractPdfText(arrayBuffer);
+                    const wordCount = extractedText.split(/\s+/).filter(Boolean).length;
+
+                    const paperObj = {
+                        id: 'paper-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                        name: file.name,
+                        size: formatBytes(file.size),
+                        objectUrl: objectUrl,
+                        extractedText: extractedText,
+                        wordCount: wordCount,
+                        active: true, // Active context by default
+                        file: file // Hold reference to file object for manual canvas rendering later
+                    };
+
+                    appState.papers.push(paperObj);
+                    playSynthTone(600, 'sine', 0.05);
+                } catch (error) {
+                    console.error("PDF Parsing error:", error);
+                    showModal("CORRUPT ARCHIVE", `Could not mount text matrix for "${file.name}". Ensure the document is not password protected.`);
+                }
+            }
+
+            // Refresh Paper Listing UI
+            renderPaperList();
+            updateActiveContextStats();
+            toggleLoaderNotification(false);
+            broadcastSystemStatus("Storage system updated successfully.");
+            
+            // Reset input so users can re-upload same file names if necessary
+            document.getElementById('pdf-upload').value = '';
+        }
+
+        // Read file contents as ArrayBuffer
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // Use PDFJS to parse actual text elements from DOM context
+        async function extractPdfText(arrayBuffer) {
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = "";
+            const totalPages = Math.min(pdf.numPages, 150); // Hard limit to protect payload size and browser memory
+
+            for (let i = 1; i <= totalPages; i++) {
+                try {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(" ");
+                    fullText += `[Page ${i}]\n${pageText}\n\n`;
+                } catch (e) {
+                    fullText += `[Page ${i} - Extraction Error]\n`;
+                }
+            }
+            return fullText;
+        }
+
+        // Render Sidebar Document list
+        function renderPaperList() {
+            const container = document.getElementById('paper-list-container');
+            const splash = document.getElementById('no-papers-splash');
+            const countLabel = document.getElementById('paper-count');
+
+            // Clear old values but keep custom splash if zero
+            container.innerHTML = '';
+
+            if (appState.papers.length === 0) {
+                splash.classList.remove('hidden');
+                container.appendChild(splash);
+                countLabel.textContent = "0 Loaded";
+                return;
+            }
+
+            splash.classList.add('hidden');
+            countLabel.textContent = `${appState.papers.length} Mounted`;
+
+            appState.papers.forEach((paper) => {
+                const item = document.createElement('div');
+                item.className = "terminal-border bg-zinc-950/40 p-2.5 rounded-md flex flex-col space-y-2 transition-all border border-zinc-800/80";
+                
+                item.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-center space-x-2 truncate">
+                            <input 
+                                type="checkbox" 
+                                ${paper.active ? 'checked' : ''} 
+                                onchange="togglePaperCheckbox('${paper.id}')"
+                                class="w-3.5 h-3.5 accent-emerald-500 rounded bg-zinc-900 border-zinc-700 text-emerald-500 cursor-pointer"
+                                title="Toggle context locking"
+                            />
+                            <span class="text-[10px] font-bold text-zinc-300 truncate tracking-wide cursor-default" title="${paper.name}">
+                                ${paper.name}
+                            </span>
+                        </div>
+                        <button onclick="purgePaper('${paper.id}')" class="text-zinc-600 hover:text-red-400 p-0.5 transition" title="Purge File">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                    <div class="flex items-center justify-between text-[8.5px] text-zinc-500 font-semibold uppercase tracking-wider bg-zinc-950/60 p-1.5 rounded">
+                        <div class="flex space-x-2">
+                            <span>${paper.size}</span>
+                            <span>•</span>
+                            <span>${paper.wordCount.toLocaleString()} wds</span>
+                        </div>
+                        <button 
+                            onclick="loadToViewer('${paper.id}')" 
+                            class="text-emerald-500 hover:text-emerald-400 font-extrabold hover:underline flex items-center space-x-1"
+                        >
+                            <span>VIEW PORT</span>
+                            <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        // Toggle context state
+        function togglePaperCheckbox(id) {
+            const paper = appState.papers.find(p => p.id === id);
+            if (paper) {
+                paper.active = !paper.active;
+                updateActiveContextStats();
+                playSynthTone(400, 'sine', 0.05);
+            }
+        }
+
+        // Toggle bulk checkbox context
+        function toggleAllPapers(status) {
+            appState.papers.forEach(p => p.active = status);
+            renderPaperList();
+            updateActiveContextStats();
+            playSynthTone(status ? 480 : 350, 'sine', 0.06);
+        }
+
+        // Delete mounted document
+        function purgePaper(id) {
+            const index = appState.papers.findIndex(p => p.id === id);
+            if (index !== -1) {
+                const paper = appState.papers[index];
+                URL.revokeObjectURL(paper.objectUrl);
+                appState.papers.splice(index, 1);
+                
+                // Clear active viewport if deleted paper was currently active
+                const renderContainer = document.getElementById('pdf-render-container');
+                const docLabel = document.getElementById('active-viewer-doc-name');
+                if (docLabel.textContent === paper.name) {
+                    renderContainer.innerHTML = "";
+                    renderContainer.classList.add('hidden');
+                    document.getElementById('pdf-empty-state').classList.remove('hidden');
+                    docLabel.textContent = "No active paper loaded";
+                }
+
+                renderPaperList();
+                updateActiveContextStats();
+                playSynthTone(300, 'triangle', 0.1);
+                broadcastSystemStatus("Paper purged from memory systems.");
+            }
+        }
+
+        // Mount to Center Viewport using clean PDFJS Canvas Renderer (Workstation grade!)
+        async function loadToViewer(id) {
+            const paper = appState.papers.find(p => p.id === id);
+            if (!paper) return;
+
+            const renderContainer = document.getElementById('pdf-render-container');
+            const emptySplash = document.getElementById('pdf-empty-state');
+            const docLabel = document.getElementById('active-viewer-doc-name');
+
+            emptySplash.classList.add('hidden');
+            renderContainer.classList.remove('hidden');
+            docLabel.textContent = paper.name;
+
+            // Show interactive loading diagnostics inside viewer
+            renderContainer.innerHTML = `
+                <div class="flex flex-col items-center justify-center p-12 text-center text-zinc-400 font-mono space-y-4">
+                    <svg class="w-8 h-8 text-emerald-500 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89"></path>
+                    </svg>
+                    <div class="text-xs font-bold uppercase tracking-widest text-glow-green animate-pulse">Initializing Canvas Matrix Scanner...</div>
+                    <div class="text-[9px] text-zinc-600 max-w-xs">Converting research layers to visual canvas components.</div>
+                </div>
+            `;
+
+            broadcastSystemStatus(`Scanning & Rendering PDF layer elements: ${paper.name}`);
+            playSynthTone(750, 'sine', 0.08);
+
+            try {
+                const arrayBuffer = await readFileAsArrayBuffer(paper.file);
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                
+                // Clear loading trace
+                renderContainer.innerHTML = '';
+
+                // Safe render limit to preserve workspace performance
+                const totalPages = Math.min(pdf.numPages, 100);
+
+                for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+
+                    // Create physical sheet wrapper
+                    const pageWrapper = document.createElement('div');
+                    pageWrapper.className = "relative border border-zinc-800 bg-[#fafafa] shadow-2xl p-2 rounded max-w-full flex flex-col items-center";
+
+                    // Create canvas
+                    const canvas = document.createElement('canvas');
+                    canvas.className = "max-w-full block shadow-inner h-auto";
+                    pageWrapper.appendChild(canvas);
+
+                    // Add microscopic digital page label indicator
+                    const pageIndicator = document.createElement('div');
+                    pageIndicator.className = "w-full text-right text-[9px] text-zinc-400 font-mono mt-1 pt-1 border-t border-zinc-200 uppercase tracking-widest";
+                    pageIndicator.textContent = `Page ${pageNum} of ${pdf.numPages}`;
+                    pageWrapper.appendChild(pageIndicator);
+
+                    renderContainer.appendChild(pageWrapper);
+
+                    // Compute dynamic device width ratios
+                    const containerWidth = renderContainer.clientWidth - 48; // padding margins
+                    const unscaledViewport = page.getViewport({ scale: 1 });
+                    const dynamicScale = Math.min(1.5, containerWidth / unscaledViewport.width);
+
+                    const viewport = page.getViewport({ scale: dynamicScale });
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+
+                    const renderContext = {
+                        canvasContext: context,
+                        viewport: viewport
+                    };
+                    
+                    // Render current layer page
+                    await page.render(renderContext).promise;
+                }
+
+                broadcastSystemStatus(`Visual workspace rendering completed for "${paper.name}".`);
+
+            } catch (err) {
+                console.error("PDF engine renderer crash:", err);
+                renderContainer.innerHTML = `
+                    <div class="p-8 text-center font-mono">
+                        <div class="text-xs font-bold text-red-500 uppercase tracking-wider mb-2">Workspace Scan Fault</div>
+                        <p class="text-[10px] text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                            Visual canvas rendering failed: ${err.message}. 
+                            <br/><br/>
+                            <span class="text-zinc-600">The document text has still been successfully mounted into active context sidebar memory for chat operations.</span>
+                        </p>
+                    </div>
+                `;
+            }
+        }
+
+        // Toggle Chat Diagnostics Overlay
+        function toggleLoaderNotification(show, message = "") {
+            const bar = document.getElementById('system-diagnostic');
+            const msg = document.getElementById('diagnostic-msg');
+            if (show) {
+                msg.textContent = message;
+                bar.classList.remove('hidden');
+            } else {
+                bar.classList.add('hidden');
+            }
+        }
+
+        // LLM Chat Prompt Delivery System
+        async function sendUserPrompt() {
+            const inputField = document.getElementById('chat-input');
+            const prompt = inputField.value.trim();
+            if (!prompt) return;
+
+            // Pre-validation checking for API keys
+            if (!appState.apiKey) {
+                showModal("API CRITICAL REQUISITE", "A valid Gemini API Key is required to communicate with the Co-Processor. Please paste your API key in the top right console slot and select 'Link'.");
+                return;
+            }
+
+            // Capture active papers
+            const lockedPapers = appState.papers.filter(p => p.active);
+
+            // Add user message to local UI chat immediately
+            appendChatMessage("USER", prompt, false);
+            inputField.value = '';
+            playSynthTone(640, 'sine', 0.05);
+
+            // Toggle processing status
+            toggleLoaderNotification(true, "AI Processing Cognitive Context...");
+
+            // Compile Context for Gemini Injection
+            let contextPayload = "You are ComputerLLM, an elite classical-styled scientific workstation AI built to assist scientists. Below are the contents of the mounted research papers that the user has selected. Use these documents carefully to answer queries comprehensively, citing page designations when available.\n\n";
+            
+            if (lockedPapers.length > 0) {
+                contextPayload += `--- START OF MOUNTED PAPERS DATA (${lockedPapers.length} Documents) ---\n`;
+                lockedPapers.forEach(paper => {
+                    contextPayload += `[DOCUMENT IDENTIFIER: ${paper.name}]\n`;
+                    contextPayload += `${paper.extractedText}\n\n`;
+                });
+                contextPayload += "--- END OF MOUNTED PAPERS DATA ---\n\n";
+            } else {
+                contextPayload += "NO papers are currently mounted. Remind the user they can load documents via the left sidebar to provide precise groundings.\n\n";
+            }
+
+            // Build systemInstruction parameter
+            const systemPrompt = contextPayload + "Analyze with absolute precision. Adopt a sleek, highly intelligent, objective, research-analyst voice.";
+
+            // Track conversation in structured history payload for multi-turn capability
+            appState.chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+
+            // Max Retries Logic with Exponential Backoff
+            let attempt = 0;
+            const maxAttempts = 5;
+            let success = false;
+            let resultText = "";
+
+            while (attempt < maxAttempts && !success) {
+                try {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${appState.activeModel}:generateContent?key=${appState.apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: appState.chatHistory,
+                            systemInstruction: { parts: [{ text: systemPrompt }] }
+                        })
+                    });
+
+                    if (response.ok) {
+                        const json = await response.json();
+                        resultText = json.candidates?.[0]?.content?.parts?.[0]?.text || "Communication loop failure. Emitted content void.";
+                        success = true;
+                    } else {
+                        throw new Error(`Endpoint returned error code: ${response.status}`);
+                    }
+                } catch (err) {
+                    attempt++;
+                    const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s, 16s
+                    if (attempt < maxAttempts) {
+                        broadcastSystemStatus(`Timeout. Backoff retry attempt ${attempt}/${maxAttempts} in ${delay/1000}s...`);
+                        await new Promise(r => setTimeout(r, delay));
+                    } else {
+                        resultText = `Co-Processor connection timeout. Fully exhausted 5 retry attempts. Please check network state, API limit quotas, and coordinate key credentials.`;
+                    }
+                }
+            }
+
+            // Append assistant response
+            appendChatMessage("CP", resultText, true);
+            appState.chatHistory.push({ role: "model", parts: [{ text: resultText }] });
+
+            toggleLoaderNotification(false);
+            broadcastSystemStatus("Ready for next workstation query.");
+            playSynthTone(750, 'sine', 0.1);
+        }
+
+        // Add message bubble directly to DOM Chat log
+        function appendChatMessage(sender, text, isAi = false) {
+            const chatMessages = document.getElementById('chat-messages');
+            const wrapper = document.createElement('div');
+            wrapper.className = "flex items-start space-x-2.5";
+
+            const avatarBg = isAi ? "bg-amber-500/10 border border-amber-500/20 text-amber-500" : "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400";
+            const panelStyle = isAi ? "bg-zinc-900/40 border border-zinc-800/80" : "bg-zinc-900/90 border border-emerald-950/40";
+            const textHeaderColor = isAi ? "text-amber-500" : "text-emerald-400";
+
+            // Support simple markdown rendering for paragraphs, bullet listings, bold headers
+            const formattedText = text
+                .replace(/\n\n/g, '<br/><br/>')
+                .replace(/\n/g, '<br/>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/`([^`]+)`/g, '<code class="bg-zinc-950 px-1 py-0.5 rounded text-amber-400 font-mono text-[10px]">$1</code>');
+
+            wrapper.innerHTML = `
+                <div class="w-5 h-5 rounded ${avatarBg} flex items-center justify-center font-bold text-[9px] flex-shrink-0">
+                    ${sender}
+                </div>
+                <div class="${panelStyle} rounded p-2.5 max-w-[85%] text-zinc-300">
+                    <span class="font-bold ${textHeaderColor} block mb-1 uppercase text-[8px] tracking-wider">
+                        ${sender === 'CP' ? 'CO-PROCESSOR CORRELATOR' : 'OPERATOR'}
+                    </span>
+                    <p class="whitespace-pre-line">${formattedText}</p>
+                </div>
+            `;
+
+            chatMessages.appendChild(wrapper);
+            
+            // Auto scroll chat to base
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Reset chat screen log and session parameters
+        function clearChatLog() {
+            const chat = document.getElementById('chat-messages');
+            chat.innerHTML = "";
+            appState.chatHistory = [];
+            
+            // Re-append Welcome system greeting
+            appendChatMessage("CP", "System trace logs purged. Memory registers cleared. Let us begin a clean analysis of your loaded papers.", true);
+            playSynthTone(200, 'sawtooth', 0.15);
+            broadcastSystemStatus("Terminal telemetry records purged.");
+        }
+
+        // Support Ctrl+Enter / Enter overrides
+        function handleTextareaKeydown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendUserPrompt();
+            }
+        }
+
+        // Utility formatting converters
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+    </script>
+</body>
